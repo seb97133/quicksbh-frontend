@@ -6,6 +6,20 @@ const Spinner = () => (
   </div>
 );
 
+// Helper pour formater la date de mise à jour
+const timeAgo = (dateString) => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const seconds = Math.floor((now - date) / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+
+  if (minutes < 1) return "À l'instant";
+  if (minutes < 60) return `MAJ il y a ${minutes} min`;
+  if (hours < 24) return `MAJ il y a ${hours} h`;
+  return `MAJ il y a ${Math.floor(hours / 24)} jours`;
+};
+
 export default function App() {
   const [places, setPlaces] = useState([]);
   const [beaches, setBeaches] = useState([]);
@@ -13,8 +27,6 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState("places");
-
-  // Couleur pour les boutons sélectionnés (violet)
   const SELECTED_COLOR = "#9b59b6";
 
   const fetchData = async () => {
@@ -45,20 +57,38 @@ export default function App() {
     }
   };
 
+  // Rafraîchissement automatique toutes les 30 secondes
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(() => {
+      console.log("⏳ Rafraîchissement des données...");
+      fetchData();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   const updateWait = async (name, wait) => {
     await fetch("https://quicksbh-backend.onrender.com/api/places", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, wait }),
+      body: JSON.stringify({
+        name,
+        wait,
+        updatedBy: "Utilisateur Anonyme" // À remplacer par user.name si connecté
+      }),
     });
-    fetchData();
+    fetchData(); // Rafraîchit les données après MAJ
   };
 
   const updateSargasses = async (name, level) => {
     await fetch("https://quicksbh-backend.onrender.com/api/beaches", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, sargasses: level }),
+      body: JSON.stringify({
+        name,
+        sargasses: level,
+        updatedBy: "Utilisateur Anonyme"
+      }),
     });
     fetchData();
   };
@@ -67,12 +97,17 @@ export default function App() {
     await fetch("https://quicksbh-backend.onrender.com/api/traffic", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, status, delay }),
+      body: JSON.stringify({
+        name,
+        status,
+        delay,
+        updatedBy: "Utilisateur Anonyme"
+      }),
     });
     fetchData();
   };
 
-  // Icônes optimisées
+  // Icônes et couleurs (comme dans ton code original)
   const getIcon = (type, category) => {
     if (category === "places") {
       switch (type) {
@@ -80,14 +115,10 @@ export default function App() {
         case "supermarche": return "🛒";
         default: return "📍";
       }
-    } else if (category === "beaches") {
-      return "🏖️";
-    } else if (category === "traffic") {
-      return "🚦";
-    }
+    } else if (category === "beaches") return "🏖️";
+    else if (category === "traffic") return "🚦";
   };
 
-  // Icône pour chaque statut de trafic
   const getTrafficStatusIcon = (status) => {
     switch (status) {
       case "fluide": return "🟢";
@@ -98,7 +129,6 @@ export default function App() {
     }
   };
 
-  // Couleurs optimisées pour les statuts
   const getStatusColor = (status, category) => {
     if (category === "beaches") {
       switch (status) {
@@ -118,12 +148,9 @@ export default function App() {
     return "#3498db";
   };
 
-  // Couleur des boutons de temps d'attente (violet si sélectionné)
   const getWaitButtonColor = (wait, currentWait) => {
     return wait === currentWait ? SELECTED_COLOR : (wait <= 10 ? "#2ecc71" : wait <= 15 ? "#f1c40f" : "#e74c3c");
   };
-
-  useEffect(() => { fetchData(); }, []);
 
   return (
     <div style={styles.container}>
@@ -135,7 +162,6 @@ export default function App() {
       `}</style>
       <h1 style={styles.title}>📍 QuickSBH</h1>
 
-      {/* Filtre unifié */}
       <div style={styles.tabContainer}>
         <button
           onClick={() => setActiveTab("places")}
@@ -163,7 +189,6 @@ export default function App() {
         <p style={styles.error}>❌ Erreur: {error}</p>
       ) : (
         <>
-          {/* Section Lieux (commerces) */}
           {activeTab === "places" && (
             <>
               {places.length > 0 ? (
@@ -171,6 +196,14 @@ export default function App() {
                   <div key={place.id} style={styles.card}>
                     <p style={styles.cardTitle}>
                       {getIcon(place.type, "places")} {place.name} → <strong>{place.wait || "?"} min</strong>
+                      {place.updatedAt && (
+                        <span style={styles.updateInfo}>
+                          {timeAgo(place.updatedAt)}
+                          {place.updatedBy && place.updatedBy !== "Système" && (
+                            <span> par {place.updatedBy}</span>
+                          )}
+                        </span>
+                      )}
                     </p>
                     <div style={styles.buttonGroup}>
                       {[5, 10, 15, 20].map((wait) => (
@@ -194,7 +227,6 @@ export default function App() {
             </>
           )}
 
-          {/* Section Plages */}
           {activeTab === "beaches" && (
             <>
               {beaches.length > 0 ? (
@@ -204,6 +236,14 @@ export default function App() {
                       {getIcon(null, "beaches")} {beach.name} → <strong style={{ color: getStatusColor(beach.sargasses, "beaches") }}>
                         {beach.sargasses || "?"}
                       </strong>
+                      {beach.updatedAt && (
+                        <span style={styles.updateInfo}>
+                          {timeAgo(beach.updatedAt)}
+                          {beach.updatedBy && beach.updatedBy !== "Système" && (
+                            <span> par {beach.updatedBy}</span>
+                          )}
+                        </span>
+                      )}
                     </p>
                     <div style={styles.buttonGroup}>
                       {["aucune", "faible", "moyenne", "forte"].map((level) => (
@@ -227,7 +267,6 @@ export default function App() {
             </>
           )}
 
-          {/* Section Trafic */}
           {activeTab === "traffic" && (
             <>
               {traffic.length > 0 ? (
@@ -239,6 +278,14 @@ export default function App() {
                         {getTrafficStatusIcon(t.status)} {t.status}
                       </strong>{" "}
                       (Retard: <strong>{t.delay} min</strong>)
+                      {t.updatedAt && (
+                        <span style={styles.updateInfo}>
+                          {timeAgo(t.updatedAt)}
+                          {t.updatedBy && t.updatedBy !== "Système" && (
+                            <span> par {t.updatedBy}</span>
+                          )}
+                        </span>
+                      )}
                     </p>
                     <div style={styles.buttonGroup}>
                       {["fluide", "modéré", "dense", "bloqué"].map((status) => (
@@ -303,7 +350,13 @@ const styles = {
   button: { padding: "8px 12px", border: "none", borderRadius: 4, color: "white", cursor: "pointer", fontSize: 14 },
   spinnerContainer: { display: "flex", justifyContent: "center", margin: "20px 0" },
   spinner: { border: "4px solid rgba(0, 0, 0, 0.1)", borderRadius: "50%", borderTop: "4px solid #3498db", width: "40px", height: "40px", animation: "spin 1s linear infinite" },
-  loading: { textAlign: "center", color: "#7f8c8d" },
   error: { textAlign: "center", color: "#e74c3c" },
   empty: { textAlign: "center", color: "#95a5a6", fontStyle: "italic" },
+  updateInfo: {
+    display: "block",
+    fontSize: 12,
+    color: "#95a5a6",
+    fontStyle: "italic",
+    marginTop: 4,
+  },
 };
